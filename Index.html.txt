@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Flujo de Caja</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#f4f5f7;--surface:#fff;--surface2:#f0f1f3;--border:#dde1e7;--text:#1a1f2e;--muted:#6b7280;--green:#16a34a;--red:#dc2626;--yellow:#ca8a04;--blue:#2563eb;--purple:#7c3aed;}
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;font-size:13px;min-height:100vh;padding:28px 32px;}
+
+  #loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:14px;}
+  .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin 0.8s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  #loading p{font-size:0.78rem;color:var(--muted);}
+  #error-banner{display:none;background:#fee2e2;border:1px solid #fca5a5;border-left:4px solid var(--red);color:#991b1b;padding:14px 20px;border-radius:8px;font-size:0.78rem;margin-bottom:16px;}
+
+  .header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:24px;padding-bottom:18px;border-bottom:1px solid var(--border);}
+  .header h1{font-size:1.5rem;font-weight:700;letter-spacing:-0.4px;}
+  .header .sub{font-size:0.73rem;color:var(--muted);margin-top:3px;}
+  .header-right{display:flex;align-items:center;gap:10px;}
+  .period-pill{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-size:0.71rem;font-weight:500;color:var(--muted);}
+  .refresh-btn{background:var(--blue);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:0.71rem;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background 0.15s;}
+  .refresh-btn:hover{background:#1d4ed8;}
+  .refresh-btn:disabled{background:#93c5fd;cursor:not-allowed;}
+  .last-update{font-size:0.65rem;color:var(--muted);margin-top:4px;text-align:right;}
+
+  .kpi-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px;}
+  .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;}
+  .kpi-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+  .kpi-label{font-size:0.68rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:0.3px;}
+  .kpi-icon{width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
+  .kpi-value{font-size:1.3rem;font-weight:700;line-height:1;margin-bottom:4px;}
+  .kpi-sub{font-size:0.67rem;color:var(--muted);}
+  .kpi-card.green .kpi-icon{background:#dcfce7;color:var(--green);}
+  .kpi-card.red   .kpi-icon{background:#fee2e2;color:var(--red);}
+  .kpi-card.blue  .kpi-icon{background:#dbeafe;color:var(--blue);}
+  .kpi-card.yellow .kpi-icon{background:#fef9c3;color:var(--yellow);}
+  .kpi-card.purple .kpi-icon{background:#ede9fe;color:var(--purple);}
+  .kpi-card.green .kpi-value{color:var(--green);}
+  .kpi-card.red   .kpi-value{color:var(--red);}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+  .card-title{font-size:0.69rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:16px;}
+  .row2{display:grid;grid-template-columns:1.3fr 1fr;gap:12px;margin-bottom:12px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
+  .row-full{margin-bottom:12px;}
+
+  table{width:100%;border-collapse:collapse;}
+  thead th{text-align:left;padding:7px 10px;font-size:0.64rem;font-weight:600;color:var(--muted);letter-spacing:0.5px;text-transform:uppercase;border-bottom:1px solid var(--border);background:var(--surface2);}
+  tbody td{padding:8px 10px;border-bottom:1px solid #f0f1f3;font-size:0.74rem;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#fafbfc;}
+  td.num{text-align:right;font-weight:500;}
+  td.pct{text-align:right;color:var(--muted);font-size:0.68rem;}
+  .bar-wrap{display:flex;align-items:center;gap:7px;}
+  .bar-bg{flex:1;height:5px;background:#e5e7eb;border-radius:10px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:10px;}
+
+  .alerts-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;}
+  .alert-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid transparent;border-radius:10px;padding:14px 16px;}
+  .alert-card.warn{border-left-color:var(--red);}
+  .alert-card.ok{border-left-color:var(--green);}
+  .alert-card.info{border-left-color:var(--blue);}
+  .alert-card.caution{border-left-color:var(--yellow);}
+  .alert-head{display:flex;align-items:center;gap:7px;margin-bottom:5px;}
+  .alert-emoji{font-size:0.95rem;}
+  .alert-title{font-size:0.73rem;font-weight:600;}
+  .alert-text{font-size:0.69rem;color:var(--muted);line-height:1.55;}
+
+  .footer{text-align:center;color:#b0b8c8;font-size:0.63rem;margin-top:20px;letter-spacing:0.5px;}
+  canvas{max-height:195px;}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <p>Conectando con Google Sheets…</p>
+</div>
+
+<div id="error-banner"></div>
+
+<div class="header">
+  <div>
+    <h1>Flujo de Caja</h1>
+    <div class="sub" id="subtitle">Cargando período…</div>
+  </div>
+  <div class="header-right">
+    <div>
+      <div class="period-pill" id="period-pill">—</div>
+      <div class="last-update" id="last-update"></div>
+    </div>
+    <button class="refresh-btn" id="refreshBtn" onclick="loadData()">↻ Actualizar</button>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card green">
+    <div class="kpi-top"><div class="kpi-label">Ingresos Totales</div><div class="kpi-icon">↑</div></div>
+    <div class="kpi-value" id="kpi-ingresos">—</div>
+    <div class="kpi-sub" id="kpi-ingresos-sub">Cargando…</div>
+  </div>
+  <div class="kpi-card red">
+    <div class="kpi-top"><div class="kpi-label">Gastos Totales</div><div class="kpi-icon">↓</div></div>
+    <div class="kpi-value" id="kpi-gastos">—</div>
+    <div class="kpi-sub">Centros de costo nivel 1</div>
+  </div>
+  <div class="kpi-card blue">
+    <div class="kpi-top"><div class="kpi-label">Flujo Neto</div><div class="kpi-icon">≈</div></div>
+    <div class="kpi-value" id="kpi-neto">—</div>
+    <div class="kpi-sub">Ingresos menos gastos</div>
+  </div>
+  <div class="kpi-card yellow">
+    <div class="kpi-top"><div class="kpi-label">Meses Activos</div><div class="kpi-icon">◈</div></div>
+    <div class="kpi-value" id="kpi-meses">—</div>
+    <div class="kpi-sub">Detectados automáticamente</div>
+  </div>
+  <div class="kpi-card purple">
+    <div class="kpi-top"><div class="kpi-label">Centros de Costo</div><div class="kpi-icon">#</div></div>
+    <div class="kpi-value" id="kpi-centros">—</div>
+    <div class="kpi-sub">Nivel 1 detectados</div>
+  </div>
+</div>
+
+<div class="row2">
+  <div class="card">
+    <div class="card-title">Ingresos vs. Gastos por Mes</div>
+    <canvas id="barMonthly"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title">Distribución de Gastos por Centro de Costo</div>
+    <canvas id="costDonut"></canvas>
+  </div>
+</div>
+
+<div class="row3">
+  <div class="card">
+    <div class="card-title">Total Gastos por Centro de Costo</div>
+    <canvas id="costBar"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title">Evolución Mensual — Top 5 Centros</div>
+    <canvas id="lineMonths"></canvas>
+  </div>
+  <div class="card">
+    <div class="card-title">Top 5 Tipos de Gasto</div>
+    <canvas id="topTipos"></canvas>
+  </div>
+</div>
+
+<div class="row-full">
+  <div class="card">
+    <div class="card-title">Detalle por Centro de Costo — Nivel 1</div>
+    <p style="font-size:0.68rem;color:var(--muted);margin-bottom:10px;font-style:italic" id="table-note"></p>
+    <table>
+      <thead id="tableHead"></thead>
+      <tbody id="costTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="alerts-grid" id="alertsGrid"></div>
+
+<div class="footer">CONECTADO A GOOGLE SHEETS · DATOS EN TIEMPO REAL</div>
+
+<script>
+  // ── La URL del propio Web App se obtiene dinámicamente ──
+  // Cuando el HTML corre dentro de Apps Script, window.location.href
+  // apunta al mismo /exec → le añadimos ?data=true para pedir el JSON
+  const SELF_URL = window.location.href.split('?')[0];
+
+  const palette=['#2563eb','#0284c7','#16a34a','#ca8a04','#7c3aed','#dc2626','#0891b2','#9d174d','#059669','#b45309'];
+  const gridC='#e5e7eb',tickC='#9ca3af',tickF={family:'Inter',size:10};
+  const legendOpts={labels:{color:'#4b5563',font:{family:'Inter',size:10},boxWidth:10,padding:8}};
+  let charts={};
+
+  function destroyCharts(){Object.values(charts).forEach(c=>c&&c.destroy());charts={};}
+  function fmt(n){return '€'+Math.round(Math.abs(n)).toLocaleString('es-ES');}
+  function fmtFull(n){return '€'+Number(n).toLocaleString('es-ES',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+  function parseNum(val){
+    if(val===null||val===undefined||val==='')return 0;
+    if(typeof val==='number')return val;
+    let s=String(val).replace(/[€\s$]/g,'').trim();
+    if(s===''||s==='-')return 0;
+    if(s.includes('.')&&s.includes(','))s=s.replace(/\./g,'').replace(',','.');
+    else if(s.includes(',')&&!s.includes('.'))s=s.replace(',','.');
+    const n=parseFloat(s);
+    return isNaN(n)?0:n;
+  }
+
+  function showError(msg){
+    const el=document.getElementById('error-banner');
+    el.innerHTML='⚠️ <strong>Error:</strong> '+msg;
+    el.style.display='block';
+    document.getElementById('loading').style.display='none';
+  }
+
+  function loadData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '↻ Cargando…';
+  document.getElementById('error-banner').style.display = 'none';
+  document.getElementById('loading').style.display = 'flex';
+
+  function processData(rows){
+    const header=rows[0].map(h=>String(h).trim());
+    const monthIndices=[],monthCols=[];
+    for(let i=3;i<header.length;i++){
+      if(header[i]&&header[i]!==''){monthIndices.push(i);monthCols.push(header[i]);}
+    }
+    const monthCount=monthCols.length;
+    const dataRows=rows.slice(1).filter(r=>r[0]&&String(r[0]).trim()!=='');
+    const gastos=dataRows.filter(r=>String(r[0]).trim().toLowerCase()==='gasto');
+    const ingresos=dataRows.filter(r=>String(r[0]).trim().toLowerCase()==='ingreso');
+
+    const centroMap={};
+    gastos.forEach(r=>{
+      const cc=r[1]?String(r[1]).trim():'Sin clasificar';
+      if(!centroMap[cc])centroMap[cc]={months:Array(monthCount).fill(0),total:0};
+      monthIndices.forEach((ci,mi)=>{const v=parseNum(r[ci]);centroMap[cc].months[mi]+=v;centroMap[cc].total+=v;});
+    });
+
+    const tipoMap={};
+    gastos.forEach(r=>{
+      const tipo=r[2]?String(r[2]).trim():'Otros';
+      if(!tipoMap[tipo])tipoMap[tipo]=0;
+      monthIndices.forEach(ci=>{tipoMap[tipo]+=parseNum(r[ci]);});
+    });
+
+    const totalGastos=Object.values(centroMap).reduce((a,c)=>a+c.total,0);
+    const monthlyTotals=monthIndices.map((_,mi)=>Object.values(centroMap).reduce((s,c)=>s+c.months[mi],0));
+    const monthlyIngresos=monthIndices.map((_,mi)=>ingresos.reduce((s,r)=>s+parseNum(r[monthIndices[mi]]),0));
+    const totalIngresos=monthlyIngresos.reduce((a,v)=>a+v,0);
+    const flujoNeto=totalIngresos-totalGastos;
+    const centrosArr=Object.entries(centroMap).sort((a,b)=>b[1].total-a[1].total);
+
+    document.getElementById('kpi-ingresos').textContent=fmt(totalIngresos);
+    document.getElementById('kpi-ingresos-sub').textContent=monthCols.join(' + ');
+    document.getElementById('kpi-gastos').textContent=fmt(totalGastos);
+    const netoEl=document.getElementById('kpi-neto');
+    netoEl.textContent=(flujoNeto>=0?'':'-')+fmt(flujoNeto);
+    netoEl.style.color=flujoNeto>=0?'var(--green)':'var(--red)';
+    document.getElementById('kpi-meses').textContent=monthCount;
+    document.getElementById('kpi-centros').textContent=centrosArr.length;
+    document.getElementById('subtitle').textContent='Resumen ejecutivo · '+monthCols.join(' – ');
+    document.getElementById('period-pill').textContent=monthCols.join(' – ').toUpperCase()+' · EUR';
+
+    destroyCharts();
+
+    charts.barMonthly=new Chart(document.getElementById('barMonthly'),{
+      type:'bar',
+      data:{labels:monthCols,datasets:[
+        {label:'Ingresos',data:monthlyIngresos,backgroundColor:'#86efac',borderColor:'#16a34a',borderWidth:1.5,borderRadius:4},
+        {label:'Gastos',data:monthlyTotals,backgroundColor:'#fca5a5',borderColor:'#dc2626',borderWidth:1.5,borderRadius:4},
+        {label:'Flujo Neto',data:monthlyIngresos.map((v,i)=>v-monthlyTotals[i]),type:'line',tension:0.3,pointRadius:5,borderColor:'#2563eb',backgroundColor:'#2563eb',fill:false}
+      ]},
+      options:{responsive:true,plugins:{legend:legendOpts},scales:{x:{ticks:{color:tickC,font:tickF},grid:{color:gridC}},y:{ticks:{color:tickC,font:tickF,callback:v=>'€'+v.toLocaleString('es-ES')},grid:{color:gridC}}}}
+    });
+
+    charts.costDonut=new Chart(document.getElementById('costDonut'),{
+      type:'doughnut',
+      data:{labels:centrosArr.map(([k,v])=>k+' '+((v.total/totalGastos)*100).toFixed(1)+'%'),datasets:[{data:centrosArr.map(([,v])=>v.total),backgroundColor:palette,borderWidth:0}]},
+      options:{responsive:true,cutout:'60%',plugins:{legend:legendOpts}}
+    });
+
+    charts.costBar=new Chart(document.getElementById('costBar'),{
+      type:'bar',
+      data:{labels:centrosArr.map(([k])=>k),datasets:[{data:centrosArr.map(([,v])=>v.total),backgroundColor:palette,borderRadius:4}]},
+      options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:tickC,font:tickF,callback:v=>'€'+v.toLocaleString('es-ES')},grid:{color:gridC}},y:{ticks:{color:'#4b5563',font:{family:'Inter',size:9}},grid:{display:false}}}}
+    });
+
+    charts.lineMonths=new Chart(document.getElementById('lineMonths'),{
+      type:'line',
+      data:{labels:monthCols,datasets:centrosArr.slice(0,5).map(([name,val],i)=>({label:name,data:val.months,borderColor:palette[i],backgroundColor:palette[i]+'22',tension:0.3,pointRadius:4,fill:false,borderWidth:2}))},
+      options:{responsive:true,plugins:{legend:legendOpts},scales:{x:{ticks:{color:tickC,font:tickF},grid:{color:gridC}},y:{ticks:{color:tickC,font:tickF,callback:v=>'€'+v.toLocaleString('es-ES')},grid:{color:gridC}}}}
+    });
+
+    const topTipos=Object.entries(tipoMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    charts.topTipos=new Chart(document.getElementById('topTipos'),{
+      type:'bar',
+      data:{labels:topTipos.map(([k])=>k),datasets:[{data:topTipos.map(([,v])=>v),backgroundColor:palette.slice(0,5),borderRadius:4}]},
+      options:{responsive:true,plugins:{legend:{display:false}},scales:{x:{ticks:{color:tickC,font:tickF},grid:{color:gridC}},y:{ticks:{color:tickC,font:tickF,callback:v=>'€'+v.toLocaleString('es-ES')},grid:{color:gridC}}}}
+    });
+
+    document.getElementById('table-note').textContent=centrosArr.length+' centros de costo · '+monthCount+' mes(es) detectados automáticamente';
+    const thead=document.getElementById('tableHead');
+    thead.innerHTML='<tr><th>Centro de Costo</th>'+monthCols.map(m=>`<th class="num">${m} (€)</th>`).join('')+'<th class="num">Total (€)</th><th class="pct">%</th><th style="min-width:130px">Participación</th></tr>';
+
+    const tbody=document.getElementById('costTable');
+    tbody.innerHTML='';
+    centrosArr.forEach(([name,val],i)=>{
+      const pct=((val.total/totalGastos)*100).toFixed(1);
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${name}</td>`+val.months.map(m=>`<td class="num">${fmtFull(m)}</td>`).join('')+
+        `<td class="num">${fmtFull(val.total)}</td><td class="pct">${pct}%</td>
+         <td><div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${palette[i%palette.length]}"></div></div>
+         <span style="font-size:0.67rem;color:${palette[i%palette.length]};min-width:30px">${pct}%</span></div></td>`;
+      tbody.appendChild(tr);
+    });
+
+    const topCC=centrosArr[0];
+    const varMes1a2=monthlyIngresos.length>=2&&monthlyIngresos[0]>0?((monthlyIngresos[1]-monthlyIngresos[0])/monthlyIngresos[0]*100).toFixed(1):null;
+    const alertas=[
+      {type:'warn',emoji:'⚠️',title:`${topCC[0]}: Mayor centro de costo (${((topCC[1].total/totalGastos)*100).toFixed(1)}%)`,text:`Con ${fmt(topCC[1].total)}, representa el ${((topCC[1].total/totalGastos)*100).toFixed(1)}% del gasto total acumulado.`},
+      {type:'warn',emoji:'💼',title:`Top tipo de gasto: ${topTipos[0][0]}`,text:`La partida "${topTipos[0][0]}" suma ${fmt(topTipos[0][1])}, siendo la subcategoría individual más alta.`},
+      {type:flujoNeto>=0?'ok':'warn',emoji:flujoNeto>=0?'✅':'🔴',title:flujoNeto>=0?'Flujo Neto Positivo':'Flujo Neto Negativo',text:`Resultado acumulado: ${fmtFull(flujoNeto)}. Ingresos ${fmt(totalIngresos)} vs Gastos ${fmt(totalGastos)}.`},
+      varMes1a2!==null?{type:parseFloat(varMes1a2)<-20?'caution':parseFloat(varMes1a2)>20?'ok':'info',emoji:parseFloat(varMes1a2)<0?'📉':'📈',title:`Variación ${monthCols[0]}→${monthCols[1]}: ${varMes1a2}%`,text:`Los ingresos ${parseFloat(varMes1a2)<0?'cayeron':'crecieron'} un ${Math.abs(varMes1a2)}% entre meses. ${parseFloat(varMes1a2)<-30?'Revisar causa: estacionalidad, retrasos o pérdida de contratos.':''}`}:{type:'info',emoji:'📊',title:'Un solo mes registrado',text:'Con más meses en el Sheet se activará el análisis de variación mensual.'},
+      {type:'info',emoji:'🔄',title:`${monthCount} mes(es) detectado(s) automáticamente`,text:`Al agregar nuevas columnas de meses en el Sheet, el dashboard las incluirá automáticamente.`},
+      {type:'info',emoji:'📋',title:'Sincronización activa',text:`Presiona "↻ Actualizar" para refrescar con los últimos datos del Sheet en cualquier momento.`}
+    ].filter(Boolean);
+
+    const grid=document.getElementById('alertsGrid');
+    grid.innerHTML='';
+    alertas.forEach(a=>{
+      const div=document.createElement('div');
+      div.className=`alert-card ${a.type}`;
+      div.innerHTML=`<div class="alert-head"><span class="alert-emoji">${a.emoji}</span><span class="alert-title">${a.title}</span></div><div class="alert-text">${a.text}</div>`;
+      grid.appendChild(div);
+    });
+  }
+
+  loadData();
+</script>
+</body>
+</html>
